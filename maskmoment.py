@@ -4,10 +4,10 @@ from spectral_cube import SpectralCube
 from astropy.io import fits
 from astropy import units as u
 from astropy import wcs
-from momfuncs import makenoise, dilmsk, smcube, findflux, writemom, calc_moments
+from .momfuncs import makenoise, dilmsk, smcube, findflux, writemom, calc_moments
 
 
-def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='', 
+def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='.', 
                 outname=None, snr_hi=4, snr_lo=2, minbeam=1, snr_hi_minch=1, 
                 snr_lo_minch=1, min_tot_ch=2, nguard=[0,0], edgech=5, fwhm=None, 
                 vsm=None, vsm_type='gauss', mom1_minch=2, mom2_minch=2, altoutput=False, 
