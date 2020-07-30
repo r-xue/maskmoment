@@ -7,12 +7,15 @@ from astropy import wcs
 from .momfuncs import makenoise, dilmsk, smcube, findflux, writemom, calc_moments
 
 
-def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='.', 
-                outname=None, snr_hi=4, snr_lo=2, minbeam=1, snr_hi_minch=1, 
-                snr_lo_minch=1, min_tot_ch=2, nguard=[0,0], edgech=5, fwhm=None, 
-                vsm=None, vsm_type='gauss', mom1_minch=2, mom2_minch=2, altoutput=False, 
-                output_snr_cube=False, output_snr_peak=False, output_snrsm_cube=False, 
-                output_2d_mask=False, to_kelvin=True, huge_operations=True, perpixel=False):
+import logging
+logger = logging.getLogger(__name__)
+
+def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='.',
+               outname=None, snr_hi=4, snr_lo=2, minbeam=1, snr_hi_minch=1,
+               snr_lo_minch=1, min_tot_ch=2, nguard=[0, 0], edgech=5, fwhm=None,
+               vsm=None, vsm_type='gauss', mom1_minch=2, mom2_minch=2, altoutput=False,
+               output_snr_cube=False, output_snr_peak=False, output_snrsm_cube=False,
+               output_2d_mask=False, to_kelvin=True, huge_operations=True, perpixel=False):
     """
     Produce FITS images of moment maps using a dilated masking approach.
 
@@ -145,7 +148,7 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
             basename = os.path.splitext(os.path.splitext(basename)[0])[0]
         else:
             basename = os.path.splitext(basename)[0]
-    print('\nOutput basename is:',basename)
+    logger.debug('\nOutput basename is: {}'.format(basename))
     #
     # --- READ INPUT FILES, OUTPUT NOISE CUBE IF NEWLY GENERATED
     #
@@ -156,30 +159,31 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
     for key in ['CRVAL3', 'CTYPE3', 'CRPIX3', 'CDELT3', 'CUNIT3']:
         del hd2d[key]
     has_jypbeam = all(x in (hd3d['bunit']).upper() for x in ['JY', 'B'])
-    print('Image cube '+img_fits+':\n',image_cube)
+    logger.debug('Image cube '+img_fits+':\n{}'.format(image_cube))
     if rms_fits is not None:
         rms_cube = SpectralCube.read(rms_fits)
         if rms_cube.unit != image_cube.unit:
-            raise RuntimeError('Noise cube units', rms_cube.unit, 
+            raise RuntimeError('Noise cube units', rms_cube.unit,
                                'differ from image units', image_cube.unit)
         if rms_cube.shape[0] == 1:
             rmsarray = np.broadcast_to(rms_cube, image_cube.shape)
             unit = rms_cube.unit
-            rms_cube = SpectralCube(data=rmsarray*unit, header=hd3d, wcs=wcs.WCS(hd3d))
-        print('Noise cube '+rms_fits+':\n',rms_cube)
+            rms_cube = SpectralCube(
+                data=rmsarray*unit, header=hd3d, wcs=wcs.WCS(hd3d))
+        logger.debug('Noise cube '+rms_fits+':\n{}'.format(rms_cube))
     else:
         if gain_fits is not None:
-            gain_cube  = SpectralCube.read(gain_fits)
-            print('Gain cube '+gain_fits+':\n',gain_cube)
+            gain_cube = SpectralCube.read(gain_fits)
+            logger.debug('Gain cube '+gain_fits+':\n{}'.format(gain_cube))
             rms_cube = makenoise(image_cube, gain_cube, edge=edgech)
         else:
             rms_cube = makenoise(image_cube, edge=edgech, perpixel=perpixel)
-        print('Noise cube:\n',rms_cube)
+        logger.debug('Noise cube:\n{}'.format(rms_cube))
         hd3d['datamin'] = np.nanmin(rms_cube._data[0])
         hd3d['datamax'] = np.nanmax(rms_cube._data[0])
         fits.writeto(pth+basename+'.ecube.fits.gz', rms_cube._data.astype(np.float32),
-                 hd3d, overwrite=True)
-        print('Wrote', pth+basename+'.ecube.fits.gz')
+                     hd3d, overwrite=True)
+        logger.debug('Wrote{}'.format(pth+basename+'.ecube.fits.gz'))
     #
     # --- GENERATE AND OUTPUT SNR CUBE, PEAK SNR IMAGE
     #
@@ -190,14 +194,14 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
             image_cube.allow_huge_operations = True
             rms_cube.allow_huge_operations = True
         snr_cube = image_cube / rms_cube
-        print('SNR cube:\n',snr_cube)
+        logger.debug('SNR cube:\n{}'.format(snr_cube))
         if output_snr_cube:
             hd3d['datamin'] = snr_cube.min().value
             hd3d['datamax'] = snr_cube.max().value
             hd3d['bunit'] = ' '
             fits.writeto(pth+basename+'.snrcube.fits.gz', snr_cube._data.astype(np.float32),
                          hd3d, overwrite=True)
-            print('Wrote', pth+basename+'.snrcube.fits.gz')    
+            logger.debug('Wrote{}'.format(pth+basename+'.snrcube.fits.gz'))
         if output_snr_peak:
             snr_peak = snr_cube.max(axis=0)
             hd2d['datamin'] = np.nanmin(snr_peak.value)
@@ -205,40 +209,41 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
             hd2d['bunit'] = ' '
             fits.writeto(pth+basename+'.snrpk.fits.gz', snr_peak.astype(np.float32),
                          hd2d, overwrite=True)
-            print('Wrote', pth+basename+'.snrpk.fits.gz')
+            logger.debug('Wrote{}'.format(pth+basename+'.snrpk.fits.gz'))
         #
         # --- GENERATE AND OUTPUT DILATED MASK
         #
         if fwhm is not None or vsm is not None:
-            sm_snrcube = smcube(snr_cube, fwhm=fwhm, vsm=vsm, vsm_type=vsm_type, 
+            sm_snrcube = smcube(snr_cube, fwhm=fwhm, vsm=vsm, vsm_type=vsm_type,
                                 edgech=edgech)
-            print('Smoothed SNR cube:\n', sm_snrcube)
+            logger.debug('Smoothed SNR cube:\n{}'.format(sm_snrcube))
             if output_snrsm_cube:
                 hd3d['datamin'] = sm_snrcube.min().value
                 hd3d['datamax'] = sm_snrcube.max().value
                 hd3d['bunit'] = ' '
-                fits.writeto(pth+basename+'.snrsmcube.fits.gz', 
+                fits.writeto(pth+basename+'.snrsmcube.fits.gz',
                              sm_snrcube._data.astype(np.float32),
                              hd3d, overwrite=True)
-                print('Wrote', pth+basename+'.snrsmcube.fits.gz')    
+                logger.debug('Wrote{}'.format(pth+basename+'.snrsmcube.fits.gz'))
             dilcube = sm_snrcube
         else:
             dilcube = snr_cube
-        dilatedmask = dilmsk(dilcube, header=hd3d, snr_hi=snr_hi, snr_lo=snr_lo, 
-                             snr_hi_minch=snr_hi_minch, snr_lo_minch=snr_lo_minch, 
+        dilatedmask = dilmsk(dilcube, header=hd3d, snr_hi=snr_hi, snr_lo=snr_lo,
+                             snr_hi_minch=snr_hi_minch, snr_lo_minch=snr_lo_minch,
                              min_tot_ch=min_tot_ch, nguard=nguard, minbeam=minbeam)
         hd3d['datamin'] = 0
         hd3d['datamax'] = 1
         hd3d['bunit'] = ' '
         fits.writeto(pth+basename+'.mask.fits.gz', dilatedmask.astype(np.float32),
                      hd3d, overwrite=True)
-        print('Wrote', pth+basename+'.mask.fits.gz')
+        logger.debug('Wrote{}'.format(pth+basename+'.mask.fits.gz'))
         if output_2d_mask:
-            summed_msk = np.broadcast_to(np.sum(dilatedmask, axis=0), image_cube.shape)
+            summed_msk = np.broadcast_to(
+                np.sum(dilatedmask, axis=0), image_cube.shape)
             proj_msk = np.minimum(summed_msk, 1)
             fits.writeto(pth+basename+'.mask2d.fits.gz', proj_msk.astype(np.float32),
                          hd3d, overwrite=True)
-            print('Wrote', pth+basename+'.mask2d.fits.gz')
+            logger.debug('Wrote{}'.format(pth+basename+'.mask2d.fits.gz'))
     #
     # --- CALCULATE FLUXES (IN ORIGINAL UNITS)
     #
@@ -246,25 +251,25 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
         fluxtab = findflux(image_cube, rms_cube, dilatedmask, proj_msk)
     else:
         fluxtab = findflux(image_cube, rms_cube, dilatedmask)
-    fluxtab.write(pth+basename+'.flux.csv', delimiter=',', format='ascii.ecsv', 
+    fluxtab.write(pth+basename+'.flux.csv', delimiter=',', format='ascii.ecsv',
                   overwrite=True)
-    print('Wrote', pth+basename+'.flux.csv')
+    logger.debug('Wrote{}'.format(pth+basename+'.flux.csv'))
     #
     # --- GENERATE AND OUTPUT MOMENT MAPS
     #
     nchanimg = np.sum(dilatedmask, axis=0)
-    print('Units of cube are', image_cube.unit)
+    logger.debug('Units of cube are{}'.format(image_cube.unit))
     if to_kelvin and has_jypbeam:
         if hasattr(image_cube, 'beam'):
-            print('Beam info:', image_cube.beam)
+            logger.debug('Beam info:{}'.format(image_cube.beam))
         else:
-            print('WARNING: Beam info is missing')
+            logger.debug('WARNING: Beam info is missing')
         image_cube = image_cube.to(u.K)
         rms_cube = rms_cube.to(u.K)
     dil_mskcub = image_cube.with_mask(dilatedmask > 0)
     dil_mskcub_mom0 = dil_mskcub.moment(order=0).to(image_cube.unit*u.km/u.s)
     if hasattr(dil_mskcub_mom0, 'unit'):
-        print('Units of mom0 map are', dil_mskcub_mom0.unit)
+        logger.debug('Units of mom0 map are{}'.format(dil_mskcub_mom0.unit))
     writemom(dil_mskcub_mom0, type='mom0', filename=pth+basename, hdr=hd2d)
     # --- Moment 1: mean velocity must be in range of cube
     dil_mskcub_mom1 = dil_mskcub.moment(order=1).to(u.km/u.s)
@@ -294,7 +299,7 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
     errmom2[nchanimg < mom2_minch] = np.nan
     writemom(errmom2, type='emom2', filename=pth+basename, hdr=hd2d)
     if altoutput:
-        altmom0 = altmom[0] * abs(hd3d['CDELT3'])/1000 * dil_mskcub_mom0.unit 
+        altmom0 = altmom[0] * abs(hd3d['CDELT3'])/1000 * dil_mskcub_mom0.unit
         altmom0[nchanimg == 0] = np.nan
         altmom1 = altmom[1] * u.km/u.s
         altmom1[altmom1 < vmin] = np.nan
@@ -306,4 +311,3 @@ def maskmoment(img_fits, gain_fits=None, rms_fits=None, mask_fits=None, outdir='
         writemom(altmom1, type='amom1', filename=pth+basename, hdr=hd2d)
         writemom(altmom2, type='amom2', filename=pth+basename, hdr=hd2d)
     return
-

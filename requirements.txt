@@ -1,0 +1,8 @@
+
+--index-url https://pypi.python.org/simple/
+
+astropy
+
+git+https://github.com/radio-astro-tools/spectral-cube@master#egg=spectral-cube
+git+https://github.com/radio-astro-tools/radio-beam@master#egg=radio-beam
+
