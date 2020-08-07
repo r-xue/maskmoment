@@ -8,7 +8,7 @@ All credits go to `T. Wong and H. Wang <https://github.com/tonywong94/maskmoment
 
 Minor changes here include:
 
-- use ``Logger`` to manage the consol output verbosity level
-- some default parameter values
+- use ``Logger`` to manage the console output verbosity level
+- slightly different default parameter values
 - import internal functions under the top namespace: ``ism3d.xyhelper.maskmoment`` when used as the submodule.
  
