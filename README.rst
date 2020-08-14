@@ -10,5 +10,6 @@ Minor changes here include:
 
 - use ``Logger`` to manage the console output verbosity level
 - slightly different default parameter values
-- import internal functions under the top namespace: ``ism3d.xyhelper.maskmoment`` when used as the submodule.
+- import internal functions under the top namespace (``ism3d.xyhelper.maskmoment`` when used as the submodule)
+- add `requirements.txt <requirements.txt>`_
  
